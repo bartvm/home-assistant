@@ -41,13 +41,13 @@ class EcovacsVacuum(VacuumDevice):
 
     def __init__(self, device):
         """Initialize the Ecovacs Vacuum."""
-        self.device = device
-        self.device.connect_and_wait_until_ready()
+        self._device = device
+        self._device.connect_and_wait_until_ready()
         try:
-            self._name = '{}'.format(self.device.vacuum['nick'])
+            self._name = '{}'.format(self._device.vacuum['nick'])
         except KeyError:
             # In case there is no nickname defined, use the device id
-            self._name = '{}'.format(self.device.vacuum['did'])
+            self._name = '{}'.format(self._device.vacuum['did'])
 
         self._fan_speed = None
         self._error = None
@@ -55,13 +55,13 @@ class EcovacsVacuum(VacuumDevice):
 
     async def async_added_to_hass(self) -> None:
         """Set up the event listeners now that hass is ready."""
-        self.device.statusEvents.subscribe(lambda _:
+        self._device.statusEvents.subscribe(lambda _:
                                            self.schedule_update_ha_state())
-        self.device.batteryEvents.subscribe(lambda _:
+        self._device.batteryEvents.subscribe(lambda _:
                                             self.schedule_update_ha_state())
-        self.device.lifespanEvents.subscribe(lambda _:
+        self._device.lifespanEvents.subscribe(lambda _:
                                              self.schedule_update_ha_state())
-        self.device.errorEvents.subscribe(self.on_error)
+        self._device.errorEvents.subscribe(self.on_error)
 
     def on_error(self, error):
         """Handle an error event from the robot.
@@ -88,17 +88,17 @@ class EcovacsVacuum(VacuumDevice):
     @property
     def unique_id(self) -> str:
         """Return an unique ID."""
-        return self.device.vacuum.get('did', None)
+        return self._device.vacuum.get('did', None)
 
     @property
     def is_on(self):
         """Return true if vacuum is currently cleaning."""
-        return self.device.is_cleaning
+        return self._device.is_cleaning
 
     @property
     def is_charging(self):
         """Return true if vacuum is currently charging."""
-        return self.device.is_charging
+        return self._device.is_charging
 
     @property
     def name(self):
@@ -113,12 +113,12 @@ class EcovacsVacuum(VacuumDevice):
     @property
     def status(self):
         """Return the status of the vacuum cleaner."""
-        return self.device.vacuum_status
+        return self._device.vacuum_status
 
     def return_to_base(self, **kwargs):
         """Set the vacuum cleaner to return to the dock."""
         from sucks import Charge
-        self.device.run(Charge())
+        self._device.run(Charge())
 
     @property
     def battery_icon(self):
@@ -129,15 +129,15 @@ class EcovacsVacuum(VacuumDevice):
     @property
     def battery_level(self):
         """Return the battery level of the vacuum cleaner."""
-        if self.device.battery_status is not None:
-            return self.device.battery_status * 100
+        if self._device.battery_status is not None:
+            return self._device.battery_status * 100
 
         return super().battery_level
 
     @property
     def fan_speed(self):
         """Return the fan speed of the vacuum cleaner."""
-        return self.device.fan_speed
+        return self._device.fan_speed
 
     @property
     def fan_speed_list(self):
@@ -148,7 +148,7 @@ class EcovacsVacuum(VacuumDevice):
     def turn_on(self, **kwargs):
         """Turn the vacuum on and start cleaning."""
         from sucks import Clean
-        self.device.run(Clean())
+        self._device.run(Clean())
 
     def turn_off(self, **kwargs):
         """Turn the vacuum off stopping the cleaning and returning home."""
@@ -157,29 +157,29 @@ class EcovacsVacuum(VacuumDevice):
     def stop(self, **kwargs):
         """Stop the vacuum cleaner."""
         from sucks import Stop
-        self.device.run(Stop())
+        self._device.run(Stop())
 
     def clean_spot(self, **kwargs):
         """Perform a spot clean-up."""
         from sucks import Spot
-        self.device.run(Spot())
+        self._device.run(Spot())
 
     def locate(self, **kwargs):
         """Locate the vacuum cleaner."""
         from sucks import PlaySound
-        self.device.run(PlaySound())
+        self._device.run(PlaySound())
 
     def set_fan_speed(self, fan_speed, **kwargs):
         """Set fan speed."""
         if self.is_on:
             from sucks import Clean
-            self.device.run(Clean(
-                mode=self.device.clean_status, speed=fan_speed))
+            self._device.run(Clean(
+                mode=self._device.clean_status, speed=fan_speed))
 
     def send_command(self, command, params=None, **kwargs):
         """Send a command to a vacuum cleaner."""
         from sucks import VacBotCommand
-        self.device.run(VacBotCommand(command, params))
+        self._device.run(VacBotCommand(command, params))
 
     @property
     def device_state_attributes(self):
@@ -187,7 +187,7 @@ class EcovacsVacuum(VacuumDevice):
         data = {}
         data[ATTR_ERROR] = self._error
 
-        for key, val in self.device.components.items():
+        for key, val in self._device.components.items():
             attr_name = ATTR_COMPONENT_PREFIX + key
             data[attr_name] = int(val * 100 / 0.2777778)
             # The above calculation includes a fix for a bug in sucks 0.9.1
