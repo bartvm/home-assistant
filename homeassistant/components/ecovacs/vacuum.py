@@ -8,11 +8,15 @@ from homeassistant.components.vacuum import (
     SUPPORT_LOCATE,
     SUPPORT_RETURN_HOME,
     SUPPORT_SEND_COMMAND,
-    SUPPORT_STATUS,
+    SUPPORT_START,
     SUPPORT_STOP,
-    SUPPORT_TURN_OFF,
-    SUPPORT_TURN_ON,
-    VacuumDevice,
+    SUPPORT_STATE,
+    STATE_CLEANING,
+    STATE_DOCKED,
+    STATE_PAUSED,
+    STATE_IDLE,
+    STATE_RETURNING,
+    StateVacuumDevice,
 )
 from homeassistant.helpers.icon import icon_for_battery_level
 
@@ -24,11 +28,10 @@ SUPPORT_ECOVACS = (
     SUPPORT_BATTERY
     | SUPPORT_RETURN_HOME
     | SUPPORT_CLEAN_SPOT
+    | SUPPORT_START
     | SUPPORT_STOP
-    | SUPPORT_TURN_OFF
-    | SUPPORT_TURN_ON
+    | SUPPORT_STATE
     | SUPPORT_LOCATE
-    | SUPPORT_STATUS
     | SUPPORT_SEND_COMMAND
     | SUPPORT_FAN_SPEED
 )
@@ -46,7 +49,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     add_entities(vacuums, True)
 
 
-class EcovacsVacuum(VacuumDevice):
+class EcovacsVacuum(StateVacuumDevice):
     """Ecovacs Vacuums such as Deebot."""
 
     def __init__(self, device):
@@ -62,6 +65,21 @@ class EcovacsVacuum(VacuumDevice):
         self._fan_speed = None
         self._error = None
         _LOGGER.debug("Vacuum initialized: %s", self.name)
+
+        import sucks
+
+        self.STATUS_TO_STATE = {
+            sucks.CLEAN_MODE_AUTO: STATE_CLEANING,
+            sucks.CLEAN_MODE_EDGE: STATE_CLEANING,
+            sucks.CLEAN_MODE_SPOT: STATE_CLEANING,
+            sucks.CLEAN_MODE_SINGLE_ROOM: STATE_CLEANING,
+            sucks.CLEAN_MODE_STOP: STATE_PAUSED,
+            sucks.CHARGE_MODE_CHARGING: STATE_DOCKED,
+            sucks.CHARGE_MODE_RETURNING: STATE_RETURNING,
+            sucks.CHARGE_MODE_IDLE: STATE_IDLE,
+            None: STATE_IDLE
+        }
+
 
     async def async_added_to_hass(self) -> None:
         """Set up the event listeners now that hass is ready."""
@@ -121,6 +139,11 @@ class EcovacsVacuum(VacuumDevice):
         """Return the status of the vacuum cleaner."""
         return self.device.vacuum_status
 
+    @property
+    def state(self):
+        """Return the status of the vacuum cleaner."""
+        return self.STATUS_TO_STATE[self.device.vacuum_status]
+
     def return_to_base(self, **kwargs):
         """Set the vacuum cleaner to return to the dock."""
         from sucks import Charge
@@ -159,6 +182,12 @@ class EcovacsVacuum(VacuumDevice):
         from sucks import Clean
 
         self.device.run(Clean())
+
+    def start(self):
+        self.turn_on()
+
+    def pause(self):
+        self.turn_off()
 
     def turn_off(self, **kwargs):
         """Turn the vacuum off stopping the cleaning and returning home."""
